@@ -6,7 +6,7 @@
     "lib": [
       "es2022"
     ],
-    "declaration": true,
+    "declaration": false,
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -23,10 +23,11 @@
     "skipLibCheck": true,
     "typeRoots": [
       "./node_modules/@types"
-    ]
+    ],
+    "outDir": "dist",
+    "rootDir": "src",
   },
-  "exclude": [
-    "node_modules",
-    "cdk.out"
-  ]
+  "include": [
+    "src"
+  ],
 }
