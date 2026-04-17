@@ -5,7 +5,8 @@
     "product_aws_api": "bin/product_aws_api.js"
   },
   "scripts": {
-    "build": "tsc --build",
+    "clean-build": "rm -rf dist/",
+    "build": "pnpm clean-build && tsc --build",
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk"
