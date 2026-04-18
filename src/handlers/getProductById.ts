@@ -1,7 +1,9 @@
+import type { APIGatewayProxyEvent } from "aws-lambda";
 import { buildCorsHeaders } from "../cors";
 import products from "../mock_data/mock_products.json";
 
-export const main = (productIdStr: string) => {
+export const main = (event: APIGatewayProxyEvent) => {
+    const productIdStr = event.pathParameters?.productId ?? "";
     const productId = Number.parseInt(productIdStr, 10);
 
     if (Number.isNaN(productId)) {
