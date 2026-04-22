@@ -82,16 +82,33 @@ export class ProductService extends Construct {
                 },
             }
         )
+        const createProductLambda = new aws_lambda.Function(
+            this,
+            "createProduct",
+            {
+                runtime: Runtime.NODEJS_24_X,
+                timeout: Duration.seconds(5),
+                code: aws_lambda.Code.fromAsset("dist"),
+                handler: "handlers/createProduct.main",
+                environment: {
+                    PRODUCTS_TABLE_NAME: PRODUCTS_TABLE,
+                    STOCK_TABLE_NAME: STOCK_TABLE,
+                }
+            }
+        )
 
         /* Seed permissions */
         productsTable.grantWriteData(seedProductsLambda)
         stockTable.grantWriteData(seedProductsLambda)
 
-        /* Products lambda permissions */
+        /* Products lambda permissions (READ) */
         productsTable.grantReadData(getProductsListLambda)
         stockTable.grantReadData(getProductsListLambda)
         productsTable.grantReadData(getProductByIdLambda)
         stockTable.grantReadData(getProductByIdLambda)
+        /* Products lambda permissions (WRITE) */
+        productsTable.grantWriteData(createProductLambda)
+        stockTable.grantWriteData(createProductLambda)
 
         /* Gateway */
         const apiGateway = new aws_apigateway.RestApi(
@@ -105,6 +122,7 @@ export class ProductService extends Construct {
 
         const getProductsListIntegration = new aws_apigateway.LambdaIntegration(getProductsListLambda)
         const getProductByIdIntegration = new aws_apigateway.LambdaIntegration(getProductByIdLambda)
+        const createProductIntegration = new aws_apigateway.LambdaIntegration(createProductLambda)
 
         /*  Resources */
         const productResource = apiGateway.root.addResource("products");
@@ -112,12 +130,13 @@ export class ProductService extends Construct {
 
         /* Endpoints */
         productResource.addMethod("GET", getProductsListIntegration)
+        productResource.addMethod("POST", createProductIntegration)
         productByIdResource.addMethod("GET", getProductByIdIntegration)
 
         /* CORS */
         productResource.addCorsPreflight({
             allowOrigins: [ALLOWED_ORIGIN, "http://localhost:3000"],
-            allowMethods: ["GET"]
+            allowMethods: ["GET", "POST"]
         })
         productByIdResource.addCorsPreflight({
             allowOrigins: [ALLOWED_ORIGIN, "http://localhost:3000"],

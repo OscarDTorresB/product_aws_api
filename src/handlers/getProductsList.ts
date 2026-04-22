@@ -38,7 +38,7 @@ const getAllStocks = async (): Promise<Stock[]> => {
 const mergeProductsAndStocks = (products: Product[], stocks: Stock[]): ProductWithStock[] => {
     return products.map((product) => ({
         ...product,
-        stock: stocks.find((s) => s.product_id === product.id)?.count ?? 0
+        count: stocks.find((s) => s.product_id === product.id)?.count ?? 0
     }))
 }
 

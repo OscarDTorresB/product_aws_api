@@ -11,5 +11,5 @@ export interface Stock {
 }
 
 export interface ProductWithStock extends Product {
-    stock: number;
+    count: number;
 }

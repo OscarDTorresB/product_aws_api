@@ -1,6 +1,7 @@
 import { buildCorsHeaders } from "../cors";
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { normalizeDbProduct, normalizeDbStock } from "../utils/normalizers";
+import { combineProductAndStock } from "../utils/utilities";
 
 import type { APIGatewayProxyEvent, Handler } from "aws-lambda";
 import type { Product, Stock } from "../types/schemas";
@@ -31,13 +32,6 @@ const searchProduct = async (productId: string): Promise<Product | null> => {
     const result = await dynamoDB.send(command)
 
     return result.Item ? normalizeDbProduct(result.Item) : null;
-}
-
-const combineProductAndStock = (product: Product, stock: Stock | null) => {
-    return {
-        ...product,
-        stock: stock ?? 0,
-    }
 }
 
 export const main: Handler<APIGatewayProxyEvent> = async (event) => {

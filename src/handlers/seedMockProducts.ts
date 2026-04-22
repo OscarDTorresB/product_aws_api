@@ -1,14 +1,9 @@
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { Handler } from "aws-lambda";
+import { mapToDbProduct, mapToDbStock } from "../utils/mapper";
+import type { Product } from "../types/schemas";
 
-interface MockProduct {
-    id: string;
-    title: string;
-    description?: string;
-    price: number;
-}
-
-const mockData: MockProduct[] = [
+const mockData: Product[] = [
     {
         id: "b0593931-af98-44cb-b2f8-76e0fc24155b",
         title: "MacBook Pro M5",
@@ -24,11 +19,13 @@ const mockData: MockProduct[] = [
     {
         id: "70ea14ee-f9f6-4331-8b97-cb87e315b673",
         title: "iPhone 18 Pro Max",
+        description: null,
         price: 600,
     },
     {
         id: "05b2cb7c-f286-4043-bad0-2663fac12b4f",
         title: "iPhone 18",
+        description: null,
         price: 500,
     },
     {
@@ -49,21 +46,14 @@ export const main: Handler = async (event) => {
         for (const mockProduct of mockData) {
             const productCommand = new PutItemCommand({
                 TableName: productsTableName,
-                Item: {
-                    id: { S: mockProduct.id },
-                    title: { S: mockProduct.title },
-                    description: mockProduct.description
-                        ? { S: mockProduct.description }
-                        : { NULL: true },
-                    price: { N: String(mockProduct.price) },
-                }
+                Item: mapToDbProduct(mockProduct)
             });
             const stockCommand = new PutItemCommand({
                 TableName: stockTableName,
-                Item: {
-                    product_id: { S: mockProduct.id },
-                    count: { N: String(10) },
-                }
+                Item: mapToDbStock({
+                    product_id: mockProduct.id,
+                    count: 10,
+                })
             })
             
             const productResult = await dynamoDB.send(productCommand)
