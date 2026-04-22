@@ -1,11 +1,65 @@
 import { Construct } from "constructs";
-import { aws_apigateway, aws_lambda, Duration } from "aws-cdk-lib";
+import { aws_apigateway, aws_dynamodb, aws_lambda, Duration } from "aws-cdk-lib";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { ALLOWED_ORIGIN } from "../src/cors";
+import { AttributeType } from "aws-cdk-lib/aws-dynamodb";
+
+const PRODUCTS_TABLE = "Products"
+const STOCK_TABLE = "Stock"
 
 export class ProductService extends Construct {
     constructor(scope: Construct, id: string) {
         super(scope, id)
+
+        /* DynamoDB tables */
+        const productsTable = new aws_dynamodb.Table(
+            this,
+            "Products",
+            {
+                tableName: PRODUCTS_TABLE,
+                partitionKey: {
+                    name: "id",
+                    type: AttributeType.STRING,
+                },
+                sortKey: {
+                    name: "price",
+                    type: AttributeType.NUMBER,
+                }
+            }
+        )
+        const stockTable = new aws_dynamodb.Table(
+            this,
+            "Stock",
+            {
+                tableName: STOCK_TABLE,
+                partitionKey: {
+                    name: "product_id",
+                    type: AttributeType.STRING,
+                },
+                sortKey: {
+                    name: "count",
+                    type: AttributeType.NUMBER,
+                },
+            }
+        )
+
+        /* Seed lambda function */
+        const seedProductsLambda = new aws_lambda.Function(
+            this,
+            "seedProducts",
+            {
+                runtime: Runtime.NODEJS_24_X,
+                timeout: Duration.seconds(5),
+                code: aws_lambda.Code.fromAsset("dist"),
+                handler: "handlers/seedMockProducts.main",
+                environment: {
+                    PRODUCTS_TABLE_NAME: PRODUCTS_TABLE,
+                    STOCK_TABLE_NAME: STOCK_TABLE,
+                },
+            }
+        )
+        productsTable.grantWriteData(seedProductsLambda)
+        stockTable.grantWriteData(seedProductsLambda)
 
         /* Lambda functions */
         const getProductsListLambda = new aws_lambda.Function(
