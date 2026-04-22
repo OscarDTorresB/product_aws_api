@@ -1,5 +1,5 @@
 import { Construct } from "constructs";
-import { aws_apigateway, aws_dynamodb, aws_lambda, Duration } from "aws-cdk-lib";
+import { aws_apigateway, aws_dynamodb, aws_lambda, Duration, RemovalPolicy } from "aws-cdk-lib";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { ALLOWED_ORIGIN } from "../src/cors";
 import { AttributeType } from "aws-cdk-lib/aws-dynamodb";
@@ -21,10 +21,7 @@ export class ProductService extends Construct {
                     name: "id",
                     type: AttributeType.STRING,
                 },
-                sortKey: {
-                    name: "price",
-                    type: AttributeType.NUMBER,
-                }
+                removalPolicy: RemovalPolicy.DESTROY
             }
         )
         const stockTable = new aws_dynamodb.Table(
@@ -36,10 +33,7 @@ export class ProductService extends Construct {
                     name: "product_id",
                     type: AttributeType.STRING,
                 },
-                sortKey: {
-                    name: "count",
-                    type: AttributeType.NUMBER,
-                },
+                removalPolicy: RemovalPolicy.DESTROY
             }
         )
 
@@ -58,8 +52,6 @@ export class ProductService extends Construct {
                 },
             }
         )
-        productsTable.grantWriteData(seedProductsLambda)
-        stockTable.grantWriteData(seedProductsLambda)
 
         /* Lambda functions */
         const getProductsListLambda = new aws_lambda.Function(
@@ -69,7 +61,11 @@ export class ProductService extends Construct {
                 runtime: Runtime.NODEJS_24_X,
                 timeout: Duration.seconds(5),
                 code: aws_lambda.Code.fromAsset("dist"),
-                handler: "getProductsList.main"
+                handler: "handlers/getProductsList.main",
+                environment: {
+                    PRODUCTS_TABLE_NAME: PRODUCTS_TABLE,
+                    STOCK_TABLE_NAME: STOCK_TABLE,
+                },
             }
         )
         const getProductByIdLambda = new aws_lambda.Function(
@@ -79,9 +75,23 @@ export class ProductService extends Construct {
                 runtime: Runtime.NODEJS_24_X,
                 timeout: Duration.seconds(5),
                 code: aws_lambda.Code.fromAsset("dist"),
-                handler: "getProductById.main"
+                handler: "handlers/getProductById.main",
+                environment: {
+                    PRODUCTS_TABLE_NAME: PRODUCTS_TABLE,
+                    STOCK_TABLE_NAME: STOCK_TABLE,
+                },
             }
         )
+
+        /* Seed permissions */
+        productsTable.grantWriteData(seedProductsLambda)
+        stockTable.grantWriteData(seedProductsLambda)
+
+        /* Products lambda permissions */
+        productsTable.grantReadData(getProductsListLambda)
+        stockTable.grantReadData(getProductsListLambda)
+        productsTable.grantReadData(getProductByIdLambda)
+        stockTable.grantReadData(getProductByIdLambda)
 
         /* Gateway */
         const apiGateway = new aws_apigateway.RestApi(
