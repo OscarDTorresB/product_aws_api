@@ -6,7 +6,7 @@
   },
   "scripts": {
     "clean-build": "rm -rf dist/",
-    "build": "pnpm clean-build && esbuild src/**/*.ts --bundle --minify --platform=node --outdir=dist --target=node24",
+    "build": "pnpm clean-build && esbuild src/**/*.ts --bundle --minify --platform=node --outdir=dist --target=node24 --packages=external",
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk"
