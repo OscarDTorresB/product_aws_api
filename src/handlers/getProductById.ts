@@ -1,37 +1,53 @@
 import { buildCorsHeaders } from "../cors";
-import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, GetItemCommand, TransactGetItemsCommand } from "@aws-sdk/client-dynamodb";
 import { normalizeDbProduct, normalizeDbStock } from "../utils/normalizers";
 import { combineProductAndStock } from "../utils/utilities";
 
 import type { APIGatewayProxyEvent, Handler } from "aws-lambda";
-import type { Product, Stock } from "../types/schemas";
+import type { ProductWithStock } from "../types/schemas";
 
 const dynamoDB = new DynamoDBClient();
 const productsTableName = process.env.PRODUCTS_TABLE_NAME as string;
 const stockTableName = process.env.STOCK_TABLE_NAME as string;
 
-const searchStock = async (productId: string): Promise<Stock | null> => {
-    const command = new GetItemCommand({
-        TableName: stockTableName,
-        Key: {
-            product_id: { S: productId }
-        }
+const searchProduct = async (productId: string): Promise<ProductWithStock | null> => {
+    const command = new TransactGetItemsCommand({
+        TransactItems: [
+            {
+                Get: {
+                    TableName: productsTableName,
+                    Key: { id: { S: productId } }
+                }
+            },
+            {
+                Get: {
+                    TableName: stockTableName,
+                    Key: { product_id: { S: productId } }
+                }
+            }
+        ]
     })
+
     const result = await dynamoDB.send(command)
 
-    return result.Item ? normalizeDbStock(result.Item) : null;
-}
+    if (!result.Responses) {
+        throw new Error("Something happened when trying to fetch product and stock")
+    }
 
-const searchProduct = async (productId: string): Promise<Product | null> => {
-    const command = new GetItemCommand({
-        TableName: productsTableName,
-        Key: {
-            id: { S: productId }
-        },
-    })
-    const result = await dynamoDB.send(command)
+    const [dbProduct, dbStock] = result.Responses;
+    
+    if (!dbProduct.Item) {
+        return null
+    }
 
-    return result.Item ? normalizeDbProduct(result.Item) : null;
+    if (!dbStock.Item) {
+        console.warn("No stock was found for the product")
+    }
+
+    return combineProductAndStock(
+        normalizeDbProduct(dbProduct.Item),
+        dbStock.Item ? normalizeDbStock(dbStock.Item) : null
+    )
 }
 
 export const main: Handler<APIGatewayProxyEvent> = async (event) => {
@@ -45,22 +61,20 @@ export const main: Handler<APIGatewayProxyEvent> = async (event) => {
         }
     }
 
-    const product = await searchProduct(productId)
+    try {
+        const productWithStock = await searchProduct(productId)
 
-    if (!product) {
         return {
-            body: null,
+            body: JSON.stringify(productWithStock),
             headers: buildCorsHeaders(),
-            statusCode: 200,
+            statusCode: 200
         }
-    }
-
-    const stock = await searchStock(productId)
-    const productWithStock = combineProductAndStock(product, stock)
-
-    return {
-        body: JSON.stringify(productWithStock),
-        headers: buildCorsHeaders(),
-        statusCode: 200
+    } catch (error) {
+        console.error("Error getting a product by its ID: ", error)
+        return {
+            body: JSON.stringify("An error has occurred"),
+            headers: buildCorsHeaders(),
+            statusCode: 500
+        }
     }
 }
