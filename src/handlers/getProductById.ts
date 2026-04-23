@@ -17,7 +17,7 @@ export const main = (event: APIGatewayProxyEvent) => {
     const product = products.find((product) => product.id === productId);
 
     return {
-        body: JSON.stringify(product),
+        body: JSON.stringify(product ?? null),
         headers: buildCorsHeaders(),
         statusCode: 200
     }

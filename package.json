@@ -6,7 +6,7 @@
   },
   "scripts": {
     "clean-build": "rm -rf dist/",
-    "build": "pnpm clean-build && tsc --build",
+    "build": "pnpm clean-build && esbuild src/**/*.ts --bundle --minify --platform=node --outdir=dist --target=node24",
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk"
@@ -16,6 +16,7 @@
     "@types/jest": "^30",
     "@types/node": "^24.10.1",
     "aws-cdk": "2.1101.0",
+    "esbuild": "^0.28.0",
     "jest": "^30",
     "ts-jest": "^29",
     "ts-node": "^10.9.2",

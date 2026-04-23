@@ -15,7 +15,7 @@ export class ProductService extends Construct {
                 runtime: Runtime.NODEJS_24_X,
                 timeout: Duration.seconds(5),
                 code: aws_lambda.Code.fromAsset("dist"),
-                handler: "handlers/getProductsList.main"
+                handler: "getProductsList.main"
             }
         )
         const getProductByIdLambda = new aws_lambda.Function(
@@ -25,7 +25,7 @@ export class ProductService extends Construct {
                 runtime: Runtime.NODEJS_24_X,
                 timeout: Duration.seconds(5),
                 code: aws_lambda.Code.fromAsset("dist"),
-                handler: "handlers/getProductById.main"
+                handler: "getProductById.main"
             }
         )
 
