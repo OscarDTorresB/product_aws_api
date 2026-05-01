@@ -24,6 +24,7 @@ export class ProductService extends Construct {
 
         /* Networking */
         const vpc = new aws_ec2.Vpc(this, 'ProductsVPC', {
+            vpcName: 'Products VPC',
             maxAzs: 2,
             natGateways: 0,
             subnetConfiguration: [
@@ -45,21 +46,21 @@ export class ProductService extends Construct {
 
         /* Security Groups */
         const sgProductsRDS = new aws_ec2.SecurityGroup(this, 'SgProductsRDS', {
-            vpc,
             description: 'Security group for RDS Cluster - Products',
+            vpc,
             allowAllOutbound: false,
         })
         const sgRDSProxy = new aws_ec2.SecurityGroup(this, 'SgRDSProxy', {
-            vpc,
             description: 'Security group for RDS Proxy',
+            vpc,
             allowAllOutbound: false,
         })
         const sgProductsLambdas = new aws_ec2.SecurityGroup(
             this,
             'SgProductsLambdas',
             {
-                vpc,
                 description: 'Security group for Lambda functions',
+                vpc,
                 allowAllOutbound: true,
             },
         )
@@ -98,6 +99,7 @@ export class ProductService extends Construct {
         })
 
         const rdsProxy = new aws_rds.DatabaseProxy(this, 'ProductsDbProxy', {
+            dbProxyName: 'products-db-proxy',
             vpc,
             vpcSubnets: {
                 subnetType: SubnetType.PRIVATE_ISOLATED,
