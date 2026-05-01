@@ -1,53 +1,24 @@
 import { buildCorsHeaders } from "../cors";
-import { DynamoDBClient, GetItemCommand, TransactGetItemsCommand } from "@aws-sdk/client-dynamodb";
-import { normalizeDbProduct, normalizeDbStock } from "../utils/normalizers";
-import { combineProductAndStock } from "../utils/utilities";
+import db from "../utils/db";
 
 import type { APIGatewayProxyEvent, Handler } from "aws-lambda";
 import type { ProductWithStock } from "../types/schemas";
 
-const dynamoDB = new DynamoDBClient();
-const productsTableName = process.env.PRODUCTS_TABLE_NAME as string;
-const stockTableName = process.env.STOCK_TABLE_NAME as string;
-
 const searchProduct = async (productId: string): Promise<ProductWithStock | null> => {
-    const command = new TransactGetItemsCommand({
-        TransactItems: [
-            {
-                Get: {
-                    TableName: productsTableName,
-                    Key: { id: { S: productId } }
-                }
-            },
-            {
-                Get: {
-                    TableName: stockTableName,
-                    Key: { product_id: { S: productId } }
-                }
-            }
-        ]
-    })
+    const { rows } = await db.query(
+        `SELECT p.id, p.title, p.description, p.price, s.count
+        FROM products p
+        JOIN stock s ON s.product_id = p.id
+        WHERE p.id = $1
+        `,
+        [productId]
+    )
 
-    const result = await dynamoDB.send(command)
-
-    if (!result.Responses) {
+    if (!rows) {
         throw new Error("Something happened when trying to fetch product and stock")
     }
 
-    const [dbProduct, dbStock] = result.Responses;
-    
-    if (!dbProduct.Item) {
-        return null
-    }
-
-    if (!dbStock.Item) {
-        console.warn("No stock was found for the product")
-    }
-
-    return combineProductAndStock(
-        normalizeDbProduct(dbProduct.Item),
-        dbStock.Item ? normalizeDbStock(dbStock.Item) : null
-    )
+    return rows[0] ?? null
 }
 
 export const main: Handler<APIGatewayProxyEvent> = async (event) => {

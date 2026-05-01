@@ -6,7 +6,7 @@
   },
   "scripts": {
     "clean-build": "rm -rf dist/",
-    "build": "pnpm clean-build && esbuild src/**/*.ts --bundle --minify --platform=node --outdir=dist --target=node24 --packages=external",
+    "build": "pnpm clean-build && esbuild src/**/*.ts --bundle --minify --platform=node --outdir=dist --target=node24",
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk"
@@ -15,6 +15,7 @@
     "@types/aws-lambda": "^8.10.161",
     "@types/jest": "^30",
     "@types/node": "^24.10.1",
+    "@types/pg": "^8.20.0",
     "aws-cdk": "2.1101.0",
     "esbuild": "^0.28.0",
     "jest": "^30",
@@ -23,8 +24,9 @@
     "typescript": "~5.9.3"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.1034.0",
+    "@aws-sdk/client-secrets-manager": "^3.1039.0",
     "aws-cdk-lib": "^2.234.1",
-    "constructs": "^10.0.0"
+    "constructs": "^10.0.0",
+    "pg": "^8.20.0"
   }
 }

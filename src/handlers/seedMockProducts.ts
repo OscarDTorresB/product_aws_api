@@ -1,71 +1,139 @@
-import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { Handler } from "aws-lambda";
-import { mapToDbProduct, mapToDbStock } from "../utils/mapper";
-import type { Product } from "../types/schemas";
+import db from "../utils/db";
+import type { ProductWithStock } from "../types/schemas";
+import { buildCorsHeaders } from "../cors";
 
-const mockData: Product[] = [
+const mockData: Omit<ProductWithStock, 'id'>[] = [
     {
-        id: "b0593931-af98-44cb-b2f8-76e0fc24155b",
         title: "MacBook Pro M5",
         description: "The new MacBook Pro with the enhanced M5 chip",
         price: 2000,
+        count: 15,
     },
     {
-        id: "4e3ff674-f41d-4754-9ce9-0cc2dffdc1a4",
         title: "Apple Watch",
         description: "Track your vital signals with the new Apple Watch",
         price: 250,
+        count: 10,
     },
     {
-        id: "70ea14ee-f9f6-4331-8b97-cb87e315b673",
         title: "iPhone 18 Pro Max",
         description: null,
         price: 600,
+        count: 20,
     },
     {
-        id: "05b2cb7c-f286-4043-bad0-2663fac12b4f",
         title: "iPhone 18",
         description: null,
         price: 500,
+        count: 4,
     },
     {
-        id: "bdf466e8-10cc-4f3b-ab25-062c20a87813",
         title: "Apple TV",
         description: "Enjoy TV again by using our renewed Apple TV",
         price: 200,
+        count: 0
     },
 ]
 
-const dynamoDB = new DynamoDBClient();
-const productsTableName = process.env.PRODUCTS_TABLE_NAME as string;
-const stockTableName = process.env.STOCK_TABLE_NAME as string;
+const upsertTables = async (): Promise<void> => {
+    try {
+        const createProductsTableQuery = `
+            CREATE TABLE IF NOT EXISTS products (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                title TEXT NOT NULL,
+                description TEXT,
+                price INT
+            )
+        `
+        const createStockTableQuery = `
+            CREATE TABLE IF NOT EXISTS stock (
+                count INT,
+                product_id UUID UNIQUE,
+                CONSTRAINT fk_Product
+                    FOREIGN KEY (product_id)
+                    REFERENCES products(id)
+                    ON DELETE CASCADE
+            )
+        `
+
+        // Resets DB
+        await db.query("DROP TABLE IF EXISTS stock")
+        await db.query("DROP TABLE IF EXISTS products")
+        await db.query(createProductsTableQuery)
+        await db.query(createStockTableQuery)
+    } catch (error) {
+        console.error("Error trying to upsert tables: ", error)
+        throw error
+    }
+}
+
+const upsertProducts = async () => {
+    const successProducts: ProductWithStock[] = []
+    let failedProductsCount = 0
+
+    for (const product of mockData) {
+        try {
+            const { rows } = await db.query(
+                `
+                WITH new_product AS (
+                    INSERT INTO products (title, description, price)
+                    VALUES ($1, $2, $3)
+                    RETURNING id, title, description, price
+                ),
+                new_stock AS (
+                    INSERT INTO stock (product_id, count)
+                    SELECT id, $4
+                    FROM new_product
+                    ON CONFLICT (product_id) DO NOTHING
+                    RETURNING product_id, count
+                )
+                SELECT p.id, p.title, p.description, p.price, s.count
+                FROM new_product p
+                LEFT JOIN new_stock s ON s.product_id = p.id
+                `,
+                [product.title, product.description, product.price, product.count]
+            )
+
+            successProducts.push(rows[0])
+        } catch (error) {
+            failedProductsCount++
+            console.error(`An error happened trying to create product: ${product.title}`, error)
+        }
+    }
+
+    return { successProducts, failedProductsCount }
+}
 
 export const main: Handler = async (event) => {
     try {
-        let consumedWCU = 0;
-        for (const mockProduct of mockData) {
-            const productCommand = new PutItemCommand({
-                TableName: productsTableName,
-                Item: mapToDbProduct(mockProduct)
-            });
-            const stockCommand = new PutItemCommand({
-                TableName: stockTableName,
-                Item: mapToDbStock({
-                    product_id: mockProduct.id,
-                    count: 10,
-                })
-            })
-            
-            const productResult = await dynamoDB.send(productCommand)
-            const mockResult = await dynamoDB.send(stockCommand)
+        console.log("Starting seed")
 
-            consumedWCU += productResult.ConsumedCapacity?.WriteCapacityUnits || 0
-            consumedWCU += mockResult.ConsumedCapacity?.WriteCapacityUnits || 0
-        };
+        await upsertTables()
+        console.log("Tables upsert success")
 
-        console.log(`Seed succeed - WCU: ${consumedWCU}`);
+        const res = await upsertProducts()
+
+        if (res.successProducts.length === 0) {
+            throw new Error("An error occurred trying to seed the products")
+        }
+
+        console.log(`Products upsert success, ${res.successProducts.length} products created -- ${res.failedProductsCount} failed`)
+
+        console.log(`Seed succeed`);
+
+        return {
+            statusCode: 201,
+            body: JSON.stringify(res),
+            headers: buildCorsHeaders()
+        }
     } catch (error) {
         console.error("Error: ", error);
-        throw new Error("Error seeding items to DynamoDB")
+
+        return {
+            statusCode: 500,
+            body: "An error has occurred when trying to seed the DB",
+            headers: buildCorsHeaders()
+        }
     }
 }

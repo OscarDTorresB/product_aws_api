@@ -1,25 +1,38 @@
 import { buildCorsHeaders } from "../cors";
-import { DynamoDBClient, PutItemCommand, TransactWriteItemsCommand } from "@aws-sdk/client-dynamodb";
-import { mapToDbProduct, mapToDbStock } from "../utils/mapper";
 import { combineProductAndStock } from "../utils/utilities";
+import db from "../utils/db";
 
 import type { APIGatewayProxyEvent, Handler } from "aws-lambda";
-import type { Product, Stock } from "../types/schemas";
+import type { ProductWithStock } from "../types/schemas";
 
-const dynamoDB = new DynamoDBClient()
-const productsTableName = process.env.PRODUCTS_TABLE_NAME as string;
-const stockTableName = process.env.STOCK_TABLE_NAME as string;
+const createProduct = async (product: ProductWithStock) => {
+    const dbClient = await db.getClient()
 
-const createProduct = async (product: Product, stock: Stock) => {
-    const createCommand = new TransactWriteItemsCommand({
-        TransactItems: [
-            { Put: { TableName: productsTableName, Item: mapToDbProduct(product) } },
-            { Put: { TableName: stockTableName, Item: mapToDbStock(stock) } },
-        ]
-    })
-    const result = await dynamoDB.send(createCommand)
+    try {
+        await dbClient.query("BEGIN")
 
-    return { product, result }
+        const productRes = await dbClient.query(
+            "INSERT INTO products (title, description, price) VALUES ($1, $2, $3) RETURNING *",
+            [product.title, product.description, product.price]
+        )
+        const stockRes = await dbClient.query(
+            "INSERT INTO stock (product_id, count) VALUES ($1, $2) RETURNING *",
+            [productRes.rows[0].id, product.count]
+        )
+
+        await dbClient.query("COMMIT")
+
+        return combineProductAndStock(
+            productRes.rows[0],
+            stockRes.rows[0]
+        )
+    } catch (error) {
+        console.error("An error occurred when trying to create a product: ", error)
+        await dbClient.query("ROLLBACK")
+        throw error
+    } finally {
+        dbClient.release()
+    }
 }
 
 export const main: Handler<APIGatewayProxyEvent> = async (event) => {
@@ -31,9 +44,9 @@ export const main: Handler<APIGatewayProxyEvent> = async (event) => {
         }
     }
 
-    const { product } = JSON.parse(event.body);
+    const { product: bodyProduct } = JSON.parse(event.body);
 
-    if (!product) {
+    if (!bodyProduct) {
         return {
             body: "A product must be provided in the body",
             statusCode: 400,
@@ -41,7 +54,7 @@ export const main: Handler<APIGatewayProxyEvent> = async (event) => {
         }
     }
 
-    if (!product.id || !product.title || !product.price || !product.count) {
+    if (!bodyProduct.title || !bodyProduct.price || !bodyProduct.count) {
         return {
             body: "Product to create doesn't meet the required schema",
             statusCode: 400,
@@ -50,11 +63,10 @@ export const main: Handler<APIGatewayProxyEvent> = async (event) => {
     }
 
     try {
-        const stock: Stock = { product_id: product.id, count: product.count };
-        const { product: productCreated } = await createProduct(product, stock)
+        const productCreated = await createProduct(bodyProduct)
 
         return {
-            body: JSON.stringify(combineProductAndStock(productCreated, stock)),
+            body: JSON.stringify(productCreated),
             statusCode: 200,
             headers: buildCorsHeaders(),
         }
