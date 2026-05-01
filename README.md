@@ -22,6 +22,10 @@ https://q5jquu68j1.execute-api.us-east-2.amazonaws.com/prod/products
 
 https://q5jquu68j1.execute-api.us-east-2.amazonaws.com/prod/products/70ea14ee-f9f6-4331-8b97-cb87e315b673
 
+#### Get signed URL for uploading products file -> GET /import?filename={filename}
+
+https://ix9f9xi6k2.execute-api.us-east-2.amazonaws.com/prod/import?filename=product-file.csv
+
 ## Useful commands
 
 - `pnpm run build` compile typescript to js
