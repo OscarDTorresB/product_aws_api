@@ -1,18 +1,21 @@
-import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { Pool } from "pg";
+import {
+    GetSecretValueCommand,
+    SecretsManagerClient,
+} from '@aws-sdk/client-secrets-manager'
+import { Pool } from 'pg'
 
-let pool: Pool | null = null;
+let pool: Pool | null = null
 
 const getPool = async (): Promise<Pool> => {
-    if (pool) return pool;
+    if (pool) return pool
 
     try {
-        const client = new SecretsManagerClient();
+        const client = new SecretsManagerClient()
         const getSecretCommand = new GetSecretValueCommand({
-            SecretId: process.env.DB_SECRET_ARN
+            SecretId: process.env.DB_SECRET_ARN,
         })
         const secret = await client.send(getSecretCommand)
-        const { username, password } = JSON.parse(secret.SecretString!);
+        const { username, password } = JSON.parse(secret.SecretString!)
 
         pool = new Pool({
             host: process.env.DB_PROXY_ENDPOINT,
@@ -21,7 +24,7 @@ const getPool = async (): Promise<Pool> => {
             user: username,
             password,
             max: 2,
-            ssl: { rejectUnauthorized: false }
+            ssl: { rejectUnauthorized: false },
         })
 
         return pool
@@ -58,7 +61,7 @@ const getClient = async () => {
 
 const db = {
     getClient,
-    query
+    query,
 }
 
-export default db;
+export default db
