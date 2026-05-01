@@ -16,7 +16,8 @@ export const main: APIGatewayProxyHandler = async (event) => {
         }
     }
 
-    const { name: filename } = event.queryStringParameters
+    const { name } = event.queryStringParameters
+    const filename = decodeURIComponent(name)
     const BUCKET_NAME = process.env.BUCKET_NAME!
 
     const command = new PutObjectCommand({
