@@ -1,8 +1,21 @@
 # Welcome to your CDK TypeScript project
 
-This is a blank project for CDK development with TypeScript.
+### Frontend URL
+https://dsnj73sfotids.cloudfront.net
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+### Backend URLs
+
+#### API Documentation with Postman
+https://documenter.getpostman.com/view/21472177/2sBXqFNNjJ
+
+#### List all products -> GET /products
+https://z5ir7nh666.execute-api.us-east-2.amazonaws.com/prod/products
+
+#### Create product -> POST /products
+https://z5ir7nh666.execute-api.us-east-2.amazonaws.com/prod/products
+
+#### Query one product by its ID -> GET /products/{id}
+https://z5ir7nh666.execute-api.us-east-2.amazonaws.com/prod/products/70ea14ee-f9f6-4331-8b97-cb87e315b673
 
 ## Useful commands
 
