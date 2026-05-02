@@ -4,6 +4,7 @@ import {
     aws_ec2,
     aws_lambda,
     aws_rds,
+    aws_sqs,
     Duration,
     RemovalPolicy,
 } from 'aws-cdk-lib'
@@ -17,6 +18,7 @@ import {
     Port,
     SubnetType,
 } from 'aws-cdk-lib/aws-ec2'
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources'
 
 export class ProductService extends Construct {
     constructor(scope: Construct, id: string) {
@@ -148,12 +150,17 @@ export class ProductService extends Construct {
             'createProduct',
             'handlers/createProduct.main',
         )
+        const catalogBatchProcessLambda = makeLambda(
+            'catalogBatchProcess',
+            'handlers/catalogBatchProcess.ts',
+        )
 
         const allLambdas = [
             seedProductsLambda,
             getProductsListLambda,
             getProductByIdLambda,
             createProductLambda,
+            catalogBatchProcessLambda,
         ]
 
         /* RDS permissions */
@@ -161,6 +168,21 @@ export class ProductService extends Construct {
             rdsProxy.grantConnect(lambda, 'postgres')
             rdsCluster.secret!.grantRead(lambda)
         })
+
+        /* SQS */
+        const catalogItemsSqs = new aws_sqs.Queue(this, 'CatalogItemsQueue', {
+            fifo: true,
+            removalPolicy: RemovalPolicy.DESTROY,
+        })
+
+        /* SQS event propagation to processor lambda */
+        catalogItemsSqs.grants.consumeMessages(catalogBatchProcessLambda)
+        catalogBatchProcessLambda.addEventSource(
+            new SqsEventSource(catalogItemsSqs, {
+                batchSize: 5,
+                maxConcurrency: 2,
+            }),
+        )
 
         /* Gateway */
         const apiGateway = new aws_apigateway.RestApi(this, 'products-api', {
