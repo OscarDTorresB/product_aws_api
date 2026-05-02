@@ -5,7 +5,7 @@ import db from '../utils/db'
 import type { APIGatewayProxyEvent, Handler } from 'aws-lambda'
 import type { ProductWithStock } from '../types/schemas'
 
-const createProduct = async (product: ProductWithStock) => {
+export const createProduct = async (product: ProductWithStock) => {
     const dbClient = await db.getClient()
 
     try {
