@@ -1,7 +1,7 @@
 import { Handler } from 'aws-lambda'
 import db from '../utils/db'
-import type { ProductWithStock } from '../types/schemas'
 import { buildCorsHeaders } from '../cors'
+import type { ProductWithStock } from '../types/schemas'
 
 const mockData: Omit<ProductWithStock, 'id'>[] = [
     {
@@ -113,7 +113,7 @@ const upsertProducts = async () => {
     return { successProducts, failedProductsCount }
 }
 
-export const main: Handler = async (event) => {
+export const main: Handler = async () => {
     try {
         console.log('Starting seed')
 

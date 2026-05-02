@@ -19,7 +19,7 @@ interface BuildHeaderParams {
 export const buildCorsHeaders = (params?: Partial<BuildHeaderParams>) => {
     const resolvedOrigin =
         params?.reqOrigin && params.reqOrigin.includes('://localhost')
-            ? params?.reqOrigin!
+            ? params.reqOrigin
             : ALLOWED_ORIGIN
 
     return {

@@ -34,7 +34,7 @@ const getPool = async (): Promise<Pool> => {
     }
 }
 
-const query = async (query: string, values?: any[]) => {
+const query = async (query: string, values?: unknown[]) => {
     const pool = await getPool()
     return pool.query(query, values)
 }

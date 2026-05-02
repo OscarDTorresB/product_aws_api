@@ -1,32 +1,38 @@
 {
-  "name": "product_aws_api",
-  "version": "0.1.0",
-  "bin": {
-    "product_aws_api": "bin/product_aws_api.js"
-  },
-  "scripts": {
-    "clean-build": "rm -rf dist/",
-    "build": "pnpm clean-build && esbuild src/**/*.ts --bundle --minify --platform=node --outdir=dist --target=node24",
-    "watch": "tsc -w",
-    "test": "jest",
-    "cdk": "cdk"
-  },
-  "devDependencies": {
-    "@types/aws-lambda": "^8.10.161",
-    "@types/jest": "^30",
-    "@types/node": "^24.10.1",
-    "@types/pg": "^8.20.0",
-    "aws-cdk": "2.1101.0",
-    "esbuild": "^0.28.0",
-    "jest": "^30",
-    "ts-jest": "^29",
-    "ts-node": "^10.9.2",
-    "typescript": "~5.9.3"
-  },
-  "dependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.1039.0",
-    "aws-cdk-lib": "^2.234.1",
-    "constructs": "^10.0.0",
-    "pg": "^8.20.0"
-  }
+    "name": "product_aws_api",
+    "version": "0.1.0",
+    "bin": {
+        "product_aws_api": "bin/product_aws_api.js"
+    },
+    "scripts": {
+        "clean-build": "rm -rf dist/",
+        "build": "pnpm clean-build && esbuild src/**/*.ts --bundle --minify --platform=node --outdir=dist --target=node24",
+        "watch": "tsc -w",
+        "test": "jest",
+        "cdk": "cdk",
+        "lint": "eslint src/ lib/"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/aws-lambda": "^8.10.161",
+        "@types/jest": "^30",
+        "@types/node": "^24.10.1",
+        "@types/pg": "^8.20.0",
+        "aws-cdk": "2.1101.0",
+        "esbuild": "^0.28.0",
+        "eslint": "^10.3.0",
+        "globals": "^17.6.0",
+        "jest": "^30",
+        "jiti": "^2.6.1",
+        "ts-jest": "^29",
+        "ts-node": "^10.9.2",
+        "typescript": "~5.9.3",
+        "typescript-eslint": "^8.59.1"
+    },
+    "dependencies": {
+        "@aws-sdk/client-secrets-manager": "^3.1039.0",
+        "aws-cdk-lib": "^2.234.1",
+        "constructs": "^10.0.0",
+        "pg": "^8.20.0"
+    }
 }
