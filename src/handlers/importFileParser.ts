@@ -51,16 +51,14 @@ const moveFile = async (origin: ObjectLocation, dest: ObjectLocation) => {
 
 const logWebStream = async (key: string, webStream: ReadableStream) => {
     return new Promise<void>((resolve, reject) => {
-        const readStream = Readable.fromWeb(webStream)
-
-        readStream.pipe(csv())
+        const readStream = Readable.fromWeb(webStream).pipe(csv())
 
         readStream.once('data', () => {
             console.group(`Read stream, key: ${key}`)
         })
 
-        readStream.on('data', (chunk) => {
-            console.log(`[STREAM-RECORD]: ${chunk}`)
+        readStream.on('data', (data) => {
+            console.log(`[STREAM-RECORD]: `, data)
         })
 
         readStream.on('end', () => {
