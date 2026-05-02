@@ -20,9 +20,8 @@
         "strictPropertyInitialization": false,
         "skipLibCheck": true,
         "typeRoots": ["./node_modules/@types"],
-        "outDir": "dist",
-        "rootDir": "src",
+        "noEmit": true,
         "types": ["node"]
     },
-    "include": ["src"]
+    "include": ["src", "lib", "bin"]
 }

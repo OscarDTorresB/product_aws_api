@@ -96,6 +96,7 @@ export class ProductService extends Construct {
                 retention: Duration.days(1),
             },
             removalPolicy: RemovalPolicy.DESTROY,
+            serverlessV2MaxCapacity: 1,
         })
 
         const rdsProxy = new aws_rds.DatabaseProxy(this, 'ProductsDbProxy', {
@@ -108,6 +109,7 @@ export class ProductService extends Construct {
             secrets: [rdsCluster.secret!],
             securityGroups: [sgRDSProxy],
             requireTLS: true,
+            idleClientTimeout: Duration.minutes(5),
         })
 
         /* Common env variables */
