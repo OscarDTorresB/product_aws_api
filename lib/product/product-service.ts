@@ -50,11 +50,19 @@ export class ProductService extends Construct {
             vpc,
             allowAllOutbound: false,
         })
-        const sgRDSProxy = new aws_ec2.SecurityGroup(this, 'SgRDSProxy', {
-            description: 'Security group for RDS Proxy',
-            vpc,
-            allowAllOutbound: false,
-        })
+
+        /* RDS Proxy disabled due hight cost */
+        // const sgRDSProxy = new aws_ec2.SecurityGroup(this, 'SgRDSProxy', {
+        //     description: 'Security group for RDS Proxy',
+        //     vpc,
+        //     allowAllOutbound: false,
+        // })
+        // sgRDSProxy.addIngressRule(
+        //     Peer.securityGroupId(sgProductsLambdas.securityGroupId),
+        //     Port.tcp(5432),
+        //     'Allows RDS proxy ingress from lambda functions',
+        // )
+
         const sgProductsLambdas = new aws_ec2.SecurityGroup(
             this,
             'SgProductsLambdas',
@@ -65,16 +73,11 @@ export class ProductService extends Construct {
             },
         )
 
-        // Lambda can talk to the Proxy
-        sgRDSProxy.addIngressRule(
+        // Lambda can talk to RDS
+        sgProductsRDS.addIngressRule(
             Peer.securityGroupId(sgProductsLambdas.securityGroupId),
             Port.tcp(5432),
-            'Allows RDS proxy ingress from lambda functions',
-        )
-        sgProductsRDS.addIngressRule(
-            Peer.securityGroupId(sgRDSProxy.securityGroupId),
-            Port.tcp(5432),
-            'Allows RDS ingress from RDS proxy',
+            'Allows RDS ingress from Lambda function',
         )
 
         /* Aurora Postgres Cluster */
@@ -97,25 +100,26 @@ export class ProductService extends Construct {
             },
             removalPolicy: RemovalPolicy.DESTROY,
             serverlessV2MaxCapacity: 1,
+            port: 5432,
         })
 
-        const rdsProxy = new aws_rds.DatabaseProxy(this, 'ProductsDbProxy', {
-            dbProxyName: 'products-db-proxy',
-            vpc,
-            vpcSubnets: {
-                subnetType: SubnetType.PRIVATE_ISOLATED,
-            },
-            proxyTarget: aws_rds.ProxyTarget.fromCluster(rdsCluster),
-            secrets: [rdsCluster.secret!],
-            securityGroups: [sgRDSProxy],
-            requireTLS: true,
-            idleClientTimeout: Duration.minutes(5),
-        })
+        /* RDS Proxy disabled due hight cost */
+        // const rdsProxy = new aws_rds.DatabaseProxy(this, 'ProductsDbProxy', {
+        //     dbProxyName: 'products-db-proxy',
+        //     vpc,
+        //     vpcSubnets: {
+        //         subnetType: SubnetType.PRIVATE_ISOLATED,
+        //     },
+        //     proxyTarget: aws_rds.ProxyTarget.fromCluster(rdsCluster),
+        //     secrets: [rdsCluster.secret!],
+        //     securityGroups: [sgRDSProxy],
+        //     requireTLS: true,
+        //     idleClientTimeout: Duration.minutes(5),
+        // })
 
         /* Common env variables */
-        const commonENV = {
-            DB_PROXY_ENDPOINT: rdsProxy.endpoint,
-            DB_NAME: 'productsDB',
+        const COMMON_ENV = {
+            // DB_PROXY_ENDPOINT: rdsProxy.endpoint, -> RDS Proxy disabled due hight cost
             DB_SECRET_ARN: rdsCluster.secret!.secretArn,
         }
 
@@ -127,7 +131,7 @@ export class ProductService extends Construct {
                 handler,
                 vpc,
                 securityGroups: [sgProductsLambdas],
-                environment: commonENV,
+                environment: COMMON_ENV,
             })
         }
 
@@ -158,7 +162,8 @@ export class ProductService extends Construct {
 
         /* RDS permissions */
         allLambdas.forEach((lambda) => {
-            rdsProxy.grantConnect(lambda, 'postgres')
+            // rdsProxy.grantConnect(lambda, 'postgres') -> RDS Proxy disabled due hight cost
+            rdsCluster.grantConnect(lambda, 'postgres')
             rdsCluster.secret!.grantRead(lambda)
         })
 

@@ -15,12 +15,14 @@ const getPool = async (): Promise<Pool> => {
             SecretId: process.env.DB_SECRET_ARN,
         })
         const secret = await client.send(getSecretCommand)
-        const { username, password } = JSON.parse(secret.SecretString!)
+        const { username, password, host, port, dbname } = JSON.parse(
+            secret.SecretString!,
+        )
 
         pool = new Pool({
-            host: process.env.DB_PROXY_ENDPOINT,
-            port: 5432,
-            database: process.env.DB_NAME,
+            host: process.env.DB_PROXY_ENDPOINT ?? host,
+            port,
+            database: dbname,
             user: username,
             password,
             max: 2,
