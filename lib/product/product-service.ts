@@ -21,6 +21,7 @@ import {
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources'
 
 export class ProductService extends Construct {
+    public readonly catalogItemsSqs: aws_sqs.Queue
     constructor(scope: Construct, id: string) {
         super(scope, id)
 
@@ -179,6 +180,8 @@ export class ProductService extends Construct {
             fifo: true,
             removalPolicy: RemovalPolicy.DESTROY,
         })
+        // Expose queue
+        this.catalogItemsSqs = catalogItemsSqs
 
         /* SQS event propagation to processor lambda */
         catalogItemsSqs.grants.consumeMessages(catalogBatchProcessLambda)
