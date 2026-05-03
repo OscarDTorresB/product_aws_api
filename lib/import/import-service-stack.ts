@@ -2,6 +2,7 @@ import {
     aws_apigateway,
     aws_lambda,
     aws_s3,
+    aws_sqs,
     Duration,
     RemovalPolicy,
     Stack,
@@ -15,6 +16,7 @@ import { ALLOWED_ORIGIN, DEFAULT_HEADERS } from '../../src/cors'
 
 interface ImportServiceStackProps extends StackProps {
     prefix: string
+    catalogItemsSqs: aws_sqs.Queue
 }
 
 export class ImportServiceStack extends Stack {
@@ -24,28 +26,25 @@ export class ImportServiceStack extends Stack {
         const { prefix } = props
 
         /* S3 Bucket */
-        const bucket = new aws_s3.Bucket(
-            this,
-            `${prefix}-Bucket-Products`,
-            {
-                versioned: true,
-                removalPolicy: RemovalPolicy.DESTROY,
-                autoDeleteObjects: true,
-                cors: [
-                    {
-                        allowedMethods: [HttpMethods.GET, HttpMethods.PUT],
-                        allowedOrigins: [ALLOWED_ORIGIN, 'http://localhost'],
-                        allowedHeaders: DEFAULT_HEADERS,
-                    },
-                ],
-            },
-        )
+        const bucket = new aws_s3.Bucket(this, `${prefix}-Bucket-Products`, {
+            versioned: true,
+            removalPolicy: RemovalPolicy.DESTROY,
+            autoDeleteObjects: true,
+            cors: [
+                {
+                    allowedMethods: [HttpMethods.GET, HttpMethods.PUT],
+                    allowedOrigins: [ALLOWED_ORIGIN, 'http://localhost'],
+                    allowedHeaders: DEFAULT_HEADERS,
+                },
+            ],
+        })
 
         /* Common env variables */
         const COMMON_ENV = {
             BUCKET_NAME: bucket.bucketName,
             UPLOAD_FILES_PREFIX: 'uploaded',
             PROCESS_FILES_PREFIX: 'processed',
+            SQS_URL: props.catalogItemsSqs.queueUrl,
         } as const
 
         /* Lambda functions */
@@ -74,6 +73,9 @@ export class ImportServiceStack extends Stack {
             'Processes and logs uploaded objects to S3',
             'handlers/importFileParser.main',
         )
+
+        /* Propagate file processor to SQS */
+        props.catalogItemsSqs.grants.sendMessages(importFileParserLambda)
 
         /* API Gateway */
         const restApi = new aws_apigateway.RestApi(

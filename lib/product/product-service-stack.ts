@@ -27,6 +27,8 @@ interface ProductServiceStackProps extends StackProps {
 }
 
 export class ProductServiceStack extends Stack {
+    public readonly catalogItemsSqs: aws_sqs.Queue
+
     constructor(scope: Construct, id: string, props: ProductServiceStackProps) {
         super(scope, id, props)
 
@@ -198,6 +200,8 @@ export class ProductServiceStack extends Stack {
             fifo: true,
             removalPolicy: RemovalPolicy.DESTROY,
         })
+        // Expose queue
+        this.catalogItemsSqs = catalogItemsSqs
 
         /* SQS event propagation to processor lambda */
         catalogItemsSqs.grants.consumeMessages(catalogBatchProcessLambda)
