@@ -2,16 +2,22 @@ import {
     aws_apigateway,
     aws_lambda,
     aws_s3,
+    aws_sqs,
     Duration,
     RemovalPolicy,
+    StackProps,
 } from 'aws-cdk-lib'
 import { Runtime } from 'aws-cdk-lib/aws-lambda'
 import { HttpMethods } from 'aws-cdk-lib/aws-s3'
 import { LambdaDestination } from 'aws-cdk-lib/aws-s3-notifications'
 import { Construct } from 'constructs'
 
+export interface ImportServiceProps extends StackProps {
+    catalogItemsSqs: aws_sqs.Queue
+}
+
 export class ImportService extends Construct {
-    constructor(scope: Construct, id: string) {
+    constructor(scope: Construct, id: string, props: ImportServiceProps) {
         super(scope, id)
 
         /* S3 Bucket */
@@ -43,6 +49,7 @@ export class ImportService extends Construct {
             BUCKET_NAME: bucket.bucketName,
             UPLOAD_FILES_PREFIX: 'uploaded',
             PROCESS_FILES_PREFIX: 'processed',
+            SQS_URL: props.catalogItemsSqs.queueUrl,
         } as const
 
         /* Lambda functions */
@@ -71,6 +78,9 @@ export class ImportService extends Construct {
             'Processes and logs uploaded objects to S3',
             'handlers/importFileParser.main',
         )
+
+        /* Propagate file processor to SQS */
+        props.catalogItemsSqs.grants.sendMessages(importFileParserLambda)
 
         /* API Gateway */
         const restApi = new aws_apigateway.RestApi(this, 'ImportApiGateway', {

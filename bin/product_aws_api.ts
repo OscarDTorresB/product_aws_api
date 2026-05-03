@@ -4,5 +4,9 @@ import { ImportApiStack } from '../lib/import/import-api-stack'
 
 const app = new cdk.App()
 
-new ProductApiStack(app, 'ProductApiStack', {})
-new ImportApiStack(app, 'ImportApiStack', {})
+const productApiStack = new ProductApiStack(app, 'ProductApiStack', {})
+const importApiStack = new ImportApiStack(app, 'ImportApiStack', {
+    catalogItemsSqs: productApiStack.catalogItemsSqs,
+})
+
+importApiStack.addDependency(productApiStack)

@@ -8,8 +8,11 @@ import {
 import { S3Handler } from 'aws-lambda'
 import { Readable } from 'stream'
 import csv from 'csv-parser'
+import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs'
+import { ProductWithStock } from '../types/schemas'
 
 const s3Client = new S3Client()
+const sqsClient = new SQSClient()
 
 interface ObjectLocation {
     bucket: string
@@ -49,27 +52,62 @@ const moveFile = async (origin: ObjectLocation, dest: ObjectLocation) => {
     }
 }
 
-const logWebStream = async (key: string, webStream: ReadableStream) => {
-    return new Promise<void>((resolve, reject) => {
+const sendRecordToSqs = async (record: Partial<ProductWithStock>) => {
+    try {
+        console.log('Sending SQS message')
+
+        if (!record || !record.title || !record.price || !record.count) {
+            throw new Error(
+                "Record to send doesn't have the required product properties",
+            )
+        }
+
+        const data = await sqsClient.send(
+            new SendMessageCommand({
+                MessageBody: JSON.stringify(record),
+                QueueUrl: process.env.SQS_URL,
+                MessageGroupId: 'import-file-parser',
+                MessageDeduplicationId:
+                    `title:${record.title}-price:${record.price}`.replaceAll(
+                        ' ',
+                        '_',
+                    ),
+            }),
+        )
+        console.log(`Message sent to SQS, MessageID: ${data.MessageId}`)
+    } catch (error) {
+        console.error(
+            'An error occurred when trying to send SQS message, ',
+            error,
+        )
+    }
+}
+
+const streamToSqs = async (key: string, webStream: ReadableStream) => {
+    const records: object[] = []
+
+    await new Promise<void>((resolve, reject) => {
         const readStream = Readable.fromWeb(webStream).pipe(csv())
 
         readStream.once('data', () => {
-            console.group(`Read stream, key: ${key}`)
+            console.log(`Read stream, key: ${key}`)
         })
 
         readStream.on('data', (data) => {
-            console.log(`[STREAM-RECORD]: `, data)
+            records.push(data)
         })
 
         readStream.on('end', () => {
-            console.groupEnd()
             resolve()
         })
         readStream.on('error', () => {
-            console.groupEnd()
             reject()
         })
     })
+
+    for (const record of records) {
+        await sendRecordToSqs(record)
+    }
 }
 
 const processFileObject = async (
@@ -82,8 +120,8 @@ const processFileObject = async (
 
     console.log(`Processing file: s3://${origin.bucket}/${origin.key}`)
 
-    // Logging for CloudWatch
-    await logWebStream(origin.key, fileObj.Body.transformToWebStream())
+    // sends product records to SQS
+    await streamToSqs(origin.key, fileObj.Body.transformToWebStream())
 
     const dest: ObjectLocation = {
         bucket: origin.bucket,
