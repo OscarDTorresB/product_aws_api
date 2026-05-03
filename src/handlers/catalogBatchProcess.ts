@@ -34,7 +34,8 @@ export const main: SQSHandler = async (event) => {
             console.log(
                 `Creating product ${(product as ProductWithStock).title}`,
             )
-            createProduct(product as ProductWithStock)
+            const res = await createProduct(product as ProductWithStock)
+            console.log(`Product created successfully, productId: ${res.id}`)
         } catch (error) {
             console.log(
                 'An error has occurred when trying to process the record.',
