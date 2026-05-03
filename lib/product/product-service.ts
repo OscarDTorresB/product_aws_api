@@ -153,7 +153,7 @@ export class ProductService extends Construct {
         )
         const catalogBatchProcessLambda = makeLambda(
             'catalogBatchProcess',
-            'handlers/catalogBatchProcess.ts',
+            'handlers/catalogBatchProcess.main',
         )
 
         const allLambdas = [
