@@ -4,39 +4,42 @@ import {
     aws_s3,
     Duration,
     RemovalPolicy,
+    Stack,
+    StackProps,
 } from 'aws-cdk-lib'
 import { Runtime } from 'aws-cdk-lib/aws-lambda'
 import { HttpMethods } from 'aws-cdk-lib/aws-s3'
 import { LambdaDestination } from 'aws-cdk-lib/aws-s3-notifications'
 import { Construct } from 'constructs'
+import { ALLOWED_ORIGIN, DEFAULT_HEADERS } from '../../src/cors'
 
-export class ImportService extends Construct {
-    constructor(scope: Construct, id: string) {
-        super(scope, id)
+interface ImportServiceStackProps extends StackProps {
+    prefix: string
+}
+
+export class ImportServiceStack extends Stack {
+    constructor(scope: Construct, id: string, props: ImportServiceStackProps) {
+        super(scope, id, props)
+
+        const { prefix } = props
 
         /* S3 Bucket */
-        const bucket = new aws_s3.Bucket(this, 'ProductsFileBucket', {
-            versioned: true,
-            removalPolicy: RemovalPolicy.DESTROY,
-            autoDeleteObjects: true,
-            cors: [
-                {
-                    allowedMethods: [HttpMethods.GET, HttpMethods.PUT],
-                    allowedOrigins: [
-                        'https://dsnj73sfotids.cloudfront.net',
-                        'http://localhost',
-                    ],
-                    allowedHeaders: [
-                        'Content-Type',
-                        'X-Amz-Date',
-                        'Authorization',
-                        'X-Api-Key',
-                        'X-Amz-Security-Token',
-                        'X-Amz-User-Agent',
-                    ],
-                },
-            ],
-        })
+        const bucket = new aws_s3.Bucket(
+            this,
+            `${prefix}-Bucket-Products`,
+            {
+                versioned: true,
+                removalPolicy: RemovalPolicy.DESTROY,
+                autoDeleteObjects: true,
+                cors: [
+                    {
+                        allowedMethods: [HttpMethods.GET, HttpMethods.PUT],
+                        allowedOrigins: [ALLOWED_ORIGIN, 'http://localhost'],
+                        allowedHeaders: DEFAULT_HEADERS,
+                    },
+                ],
+            },
+        )
 
         /* Common env variables */
         const COMMON_ENV = {
@@ -62,22 +65,26 @@ export class ImportService extends Construct {
         }
 
         const importProductsFileLambda = makeLambda(
-            'ImportProductsFileLambda',
+            `${prefix}-Lambda-GenerateSignedUrl`,
             'Generates signed url for files upload',
             'handlers/importProductsFile.main',
         )
         const importFileParserLambda = makeLambda(
-            'ImportFileParserLambda',
+            `${prefix}-Lambda-ParseCSV`,
             'Processes and logs uploaded objects to S3',
             'handlers/importFileParser.main',
         )
 
         /* API Gateway */
-        const restApi = new aws_apigateway.RestApi(this, 'ImportApiGateway', {
-            restApiName: 'Import API Gateway',
-            description:
-                'This API serves lambda functions related to imports of product files',
-        })
+        const restApi = new aws_apigateway.RestApi(
+            this,
+            `${prefix}-ApiGateway`,
+            {
+                restApiName: 'Import API Gateway',
+                description:
+                    'This API serves lambda functions related to imports of product files',
+            },
+        )
         const importProductsFileIntegration =
             new aws_apigateway.LambdaIntegration(importProductsFileLambda)
 

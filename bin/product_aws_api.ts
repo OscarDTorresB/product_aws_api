@@ -1,8 +1,8 @@
 import * as cdk from 'aws-cdk-lib/core'
-import { ProductApiStack } from '../lib/product/product-api-stack'
-import { ImportApiStack } from '../lib/import/import-api-stack'
+import { ProductServiceStack } from '../lib/product/product-service-stack'
+import { ImportServiceStack } from '../lib/import/import-service-stack'
 
 const app = new cdk.App()
 
-new ProductApiStack(app, 'ProductApiStack', {})
-new ImportApiStack(app, 'ImportApiStack', {})
+new ProductServiceStack(app, 'ProductApiStack', { prefix: 'ProductService' })
+new ImportServiceStack(app, 'ImportApiStack', { prefix: 'ImportService' })

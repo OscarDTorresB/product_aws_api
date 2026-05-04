@@ -6,6 +6,8 @@ import {
     aws_rds,
     Duration,
     RemovalPolicy,
+    Stack,
+    StackProps,
 } from 'aws-cdk-lib'
 import { Runtime } from 'aws-cdk-lib/aws-lambda'
 import { ALLOWED_ORIGIN } from '../../src/cors'
@@ -18,13 +20,19 @@ import {
     SubnetType,
 } from 'aws-cdk-lib/aws-ec2'
 
-export class ProductService extends Construct {
-    constructor(scope: Construct, id: string) {
-        super(scope, id)
+interface ProductServiceStackProps extends StackProps {
+    prefix: string
+}
+
+export class ProductServiceStack extends Stack {
+    constructor(scope: Construct, id: string, props: ProductServiceStackProps) {
+        super(scope, id, props)
+
+        const { prefix } = props
 
         /* Networking */
-        const vpc = new aws_ec2.Vpc(this, 'ProductsVPC', {
-            vpcName: 'Products VPC',
+        const vpc = new aws_ec2.Vpc(this, `${prefix}-VPC`, {
+            vpcName: 'product-service-vpc',
             maxAzs: 2,
             natGateways: 0,
             subnetConfiguration: [
@@ -37,22 +45,26 @@ export class ProductService extends Construct {
         })
 
         /* VPC endpoints - Creates net interface for AWS services */
-        vpc.addGatewayEndpoint('S3Endpoint', {
+        vpc.addGatewayEndpoint(`${prefix}-VpcEndpoint-S3`, {
             service: GatewayVpcEndpointAwsService.S3,
         })
-        vpc.addInterfaceEndpoint('SecretsManagerEndpoint', {
+        vpc.addInterfaceEndpoint(`${prefix}-VpcEndpoint-SecretsManager`, {
             service: InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
         })
 
         /* Security Groups */
-        const sgProductsRDS = new aws_ec2.SecurityGroup(this, 'SgProductsRDS', {
-            description: 'Security group for RDS Cluster - Products',
-            vpc,
-            allowAllOutbound: false,
-        })
+        const sgProductsRDS = new aws_ec2.SecurityGroup(
+            this,
+            `${prefix}-SecurityGroup-Database`,
+            {
+                description: 'Security group for Aurora RDS Cluster',
+                vpc,
+                allowAllOutbound: false,
+            },
+        )
 
         /* RDS Proxy disabled due hight cost */
-        // const sgRDSProxy = new aws_ec2.SecurityGroup(this, 'SgRDSProxy', {
+        // const sgRDSProxy = new aws_ec2.SecurityGroup(this, `${prefix}-SecurityGroup-DatabaseProxy`, {
         //     description: 'Security group for RDS Proxy',
         //     vpc,
         //     allowAllOutbound: false,
@@ -65,9 +77,9 @@ export class ProductService extends Construct {
 
         const sgProductsLambdas = new aws_ec2.SecurityGroup(
             this,
-            'SgProductsLambdas',
+            `${prefix}-SecurityGroup-Lambda`,
             {
-                description: 'Security group for Lambda functions',
+                description: 'Security group for product Lambda functions',
                 vpc,
                 allowAllOutbound: true,
             },
@@ -81,31 +93,38 @@ export class ProductService extends Construct {
         )
 
         /* Aurora Postgres Cluster */
-        const rdsCluster = new aws_rds.DatabaseCluster(this, 'ProductsDB', {
-            defaultDatabaseName: 'productsDB',
-            vpc,
-            vpcSubnets: {
-                subnetType: SubnetType.PRIVATE_ISOLATED,
+        const rdsCluster = new aws_rds.DatabaseCluster(
+            this,
+            `${prefix}-AuroraCluster`,
+            {
+                defaultDatabaseName: 'product_service_db',
+                vpc,
+                vpcSubnets: {
+                    subnetType: SubnetType.PRIVATE_ISOLATED,
+                },
+                securityGroups: [sgProductsRDS],
+                engine: aws_rds.DatabaseClusterEngine.auroraPostgres({
+                    version: AuroraPostgresEngineVersion.VER_17_7,
+                }),
+                credentials: aws_rds.Credentials.fromGeneratedSecret(
+                    'postgres',
+                    {
+                        secretName: 'product-service/aurora-credentials',
+                    },
+                ),
+                writer: aws_rds.ClusterInstance.serverlessV2('writer-instance'),
+                backup: {
+                    retention: Duration.days(1),
+                },
+                removalPolicy: RemovalPolicy.DESTROY,
+                serverlessV2MaxCapacity: 1,
+                port: 5432,
             },
-            securityGroups: [sgProductsRDS],
-            engine: aws_rds.DatabaseClusterEngine.auroraPostgres({
-                version: AuroraPostgresEngineVersion.VER_17_7,
-            }),
-            credentials: aws_rds.Credentials.fromGeneratedSecret('postgres', {
-                secretName: 'aurora-serverless-credentials',
-            }),
-            writer: aws_rds.ClusterInstance.serverlessV2('writerInstance'),
-            backup: {
-                retention: Duration.days(1),
-            },
-            removalPolicy: RemovalPolicy.DESTROY,
-            serverlessV2MaxCapacity: 1,
-            port: 5432,
-        })
+        )
 
         /* RDS Proxy disabled due hight cost */
-        // const rdsProxy = new aws_rds.DatabaseProxy(this, 'ProductsDbProxy', {
-        //     dbProxyName: 'products-db-proxy',
+        // const rdsProxy = new aws_rds.DatabaseProxy(this, 'ProductService-DatabaseProxy', {
+        //     dbProxyName: 'product-service-database-proxy',
         //     vpc,
         //     vpcSubnets: {
         //         subnetType: SubnetType.PRIVATE_ISOLATED,
@@ -137,19 +156,19 @@ export class ProductService extends Construct {
 
         /* Lambda functions */
         const seedProductsLambda = makeLambda(
-            'seedProducts',
+            `${prefix}-Lambda-SeedProducts`,
             'handlers/seedMockProducts.main',
         )
         const getProductsListLambda = makeLambda(
-            'getProductsList',
+            `${prefix}-Lambda-GetProductsList`,
             'handlers/getProductsList.main',
         )
         const getProductByIdLambda = makeLambda(
-            'getProductById',
+            `${prefix}-Lambda-GetProductById`,
             'handlers/getProductById.main',
         )
         const createProductLambda = makeLambda(
-            'createProduct',
+            `${prefix}-Lambda-CreateProduct`,
             'handlers/createProduct.main',
         )
 
@@ -168,10 +187,14 @@ export class ProductService extends Construct {
         })
 
         /* Gateway */
-        const apiGateway = new aws_apigateway.RestApi(this, 'products-api', {
-            restApiName: 'Products API Gateway',
-            description: 'This API serves lambda functions related to products',
-        })
+        const apiGateway = new aws_apigateway.RestApi(
+            this,
+            `${prefix}-ApiGateway`,
+            {
+                restApiName: `${prefix}-API`,
+                description: 'REST API for product service operations',
+            },
+        )
 
         const getProductsListIntegration = new aws_apigateway.LambdaIntegration(
             getProductsListLambda,
