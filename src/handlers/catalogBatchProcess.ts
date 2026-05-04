@@ -13,10 +13,18 @@ const sendProductsCreationNotification = async (
             throw new Error('Missing SNS arn for sending notification')
         }
 
+        const maxPrice = Math.max(...products.map((p) => p.price))
+
         const data = await snsClient.send(
             new PublishCommand({
                 Message: `${products.length} products has been created: ${products.map((p) => p.title).join(', ')}`,
                 TopicArn: process.env.ITEMS_CREATED_SNS_ARN,
+                MessageAttributes: {
+                    price: {
+                        DataType: 'Number',
+                        StringValue: String(maxPrice),
+                    },
+                },
             }),
         )
 

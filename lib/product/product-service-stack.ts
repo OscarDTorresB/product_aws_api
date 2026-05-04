@@ -229,8 +229,25 @@ export class ProductServiceStack extends Stack {
         )
 
         /* SNS subscriptions and permissions */
+        // Notified when any product in the batch has price < 100
         createProductTopic.addSubscription(
-            new EmailSubscription('dev@oscartorres.co'),
+            new EmailSubscription('dev@oscartorres.co', {
+                filterPolicy: {
+                    price: aws_sns.SubscriptionFilter.numericFilter({
+                        lessThan: 100,
+                    }),
+                },
+            }),
+        )
+        // Notified when any product in the batch has price >= 100
+        createProductTopic.addSubscription(
+            new EmailSubscription('expensive-item@oscartorres.co', {
+                filterPolicy: {
+                    price: aws_sns.SubscriptionFilter.numericFilter({
+                        greaterThanOrEqualTo: 100,
+                    }),
+                },
+            }),
         )
         createProductTopic.grants.publish(catalogBatchProcessLambda)
         catalogBatchProcessLambda.addEnvironment(
