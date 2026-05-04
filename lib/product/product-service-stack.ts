@@ -4,6 +4,7 @@ import {
     aws_ec2,
     aws_lambda,
     aws_rds,
+    aws_sns,
     aws_sqs,
     Duration,
     RemovalPolicy,
@@ -21,6 +22,7 @@ import {
     SubnetType,
 } from 'aws-cdk-lib/aws-ec2'
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources'
+import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions'
 
 interface ProductServiceStackProps extends StackProps {
     prefix: string
@@ -54,6 +56,9 @@ export class ProductServiceStack extends Stack {
         })
         vpc.addInterfaceEndpoint(`${prefix}-VpcEndpoint-SecretsManager`, {
             service: InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+        })
+        vpc.addInterfaceEndpoint(`${prefix}-VpcEndpoint-SNS`, {
+            service: InterfaceVpcEndpointAwsService.SNS,
         })
 
         /* Security Groups */
@@ -121,6 +126,7 @@ export class ProductServiceStack extends Stack {
                     retention: Duration.days(1),
                 },
                 removalPolicy: RemovalPolicy.DESTROY,
+                serverlessV2MinCapacity: 0,
                 serverlessV2MaxCapacity: 1,
                 port: 5432,
             },
@@ -149,7 +155,7 @@ export class ProductServiceStack extends Stack {
         const makeLambda = (id: string, handler: string) => {
             return new aws_lambda.Function(this, id, {
                 runtime: Runtime.NODEJS_24_X,
-                timeout: Duration.seconds(5),
+                timeout: Duration.seconds(10),
                 code: aws_lambda.Code.fromAsset('dist'),
                 handler,
                 vpc,
@@ -176,7 +182,7 @@ export class ProductServiceStack extends Stack {
             'handlers/createProduct.main',
         )
         const catalogBatchProcessLambda = makeLambda(
-            'catalogBatchProcess',
+            `${prefix}-Lambda-CatalogBatchProcess`,
             'handlers/catalogBatchProcess.main',
         )
 
@@ -196,12 +202,22 @@ export class ProductServiceStack extends Stack {
         })
 
         /* SQS */
-        const catalogItemsSqs = new aws_sqs.Queue(this, 'CatalogItemsQueue', {
-            fifo: true,
-            removalPolicy: RemovalPolicy.DESTROY,
-        })
+        const catalogItemsSqs = new aws_sqs.Queue(
+            this,
+            `${prefix}-Queue-CatalogItems`,
+            {
+                fifo: true,
+                removalPolicy: RemovalPolicy.DESTROY,
+            },
+        )
         // Expose queue
         this.catalogItemsSqs = catalogItemsSqs
+
+        /* SNS */
+        const createProductTopic = new aws_sns.Topic(
+            this,
+            `${prefix}-Topic-CreateProduct`,
+        )
 
         /* SQS event propagation to processor lambda */
         catalogItemsSqs.grants.consumeMessages(catalogBatchProcessLambda)
@@ -210,6 +226,16 @@ export class ProductServiceStack extends Stack {
                 batchSize: 5,
                 maxConcurrency: 2,
             }),
+        )
+
+        /* SNS subscriptions and permissions */
+        createProductTopic.addSubscription(
+            new EmailSubscription('dev@oscartorres.co'),
+        )
+        createProductTopic.grants.publish(catalogBatchProcessLambda)
+        catalogBatchProcessLambda.addEnvironment(
+            'ITEMS_CREATED_SNS_ARN',
+            createProductTopic.topicArn,
         )
 
         /* Gateway */
