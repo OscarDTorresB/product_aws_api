@@ -4,12 +4,16 @@ import { ImportServiceStack } from '../lib/import/import-service-stack'
 
 const app = new cdk.App()
 
-const productApiStack = new ProductServiceStack(app, 'ProductApiStack', {
-    prefix: 'ProductService',
-})
-const importApiStack = new ImportServiceStack(app, 'ImportApiStack', {
+const productServiceStack = new ProductServiceStack(
+    app,
+    'ProductServiceStack',
+    {
+        prefix: 'ProductService',
+    },
+)
+const importServiceStack = new ImportServiceStack(app, 'ImportServiceStack', {
     prefix: 'ImportService',
-    catalogItemsSqs: productApiStack.catalogItemsSqs,
+    catalogItemsSqs: productServiceStack.catalogItemsSqs,
 })
 
-importApiStack.addDependency(productApiStack)
+importServiceStack.addDependency(productServiceStack)
