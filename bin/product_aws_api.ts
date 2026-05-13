@@ -12,12 +12,18 @@ const productServiceStack = new ProductServiceStack(
         prefix: 'ProductService',
     },
 )
+const authorizerServiceStack = new AuthorizerServiceStack(
+    app,
+    'AuthorizerServiceStack',
+    {
+        prefix: 'AuthorizerService',
+    },
+)
 const importServiceStack = new ImportServiceStack(app, 'ImportServiceStack', {
     prefix: 'ImportService',
     catalogItemsSqs: productServiceStack.catalogItemsSqs,
-})
-new AuthorizerServiceStack(app, 'AuthorizerServiceStack', {
-    prefix: 'AuthorizerService',
+    authorizer: authorizerServiceStack.authorizer,
 })
 
 importServiceStack.addDependency(productServiceStack)
+importServiceStack.addDependency(authorizerServiceStack)

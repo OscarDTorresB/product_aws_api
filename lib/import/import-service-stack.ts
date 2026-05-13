@@ -17,6 +17,7 @@ import { ALLOWED_ORIGIN, DEFAULT_HEADERS } from '../../src/cors'
 interface ImportServiceStackProps extends StackProps {
     prefix: string
     catalogItemsSqs: aws_sqs.Queue
+    authorizer: aws_apigateway.TokenAuthorizer
 }
 
 export class ImportServiceStack extends Stack {
@@ -92,7 +93,9 @@ export class ImportServiceStack extends Stack {
 
         /* Resources  */
         const importResource = restApi.root.addResource('import')
-        importResource.addMethod('GET', importProductsFileIntegration)
+        importResource.addMethod('GET', importProductsFileIntegration, {
+            authorizer: props.authorizer,
+        })
 
         /* Permissions */
         bucket.grants.put(

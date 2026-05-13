@@ -2,8 +2,11 @@ import {
     GetSecretValueCommand,
     SecretsManagerClient,
 } from '@aws-sdk/client-secrets-manager'
-import { buildCorsHeaders } from '../cors'
-import type { APIGatewayProxyEvent, Handler } from 'aws-lambda'
+import type {
+    APIGatewayAuthorizerResult,
+    APIGatewayTokenAuthorizerHandler,
+    StatementEffect,
+} from 'aws-lambda'
 
 /* Uses Secrets Manager to fetch the basic auth credentials */
 const getCredentials = async () => {
@@ -41,36 +44,43 @@ const verifyCredentials = async (authHeader: string) => {
     }
 }
 
-export const main: Handler<APIGatewayProxyEvent> = async (event) => {
-    const requestOrigin = event?.headers?.origin ?? event?.headers?.Origin
-    const basicAuthHeader =
-        event.headers?.Authorization ?? event.headers?.authorization
+const generatePolicy = (
+    principalId: string,
+    effect: StatementEffect,
+    resource: string,
+): APIGatewayAuthorizerResult => {
+    return {
+        principalId,
+        policyDocument: {
+            Version: '2012-10-17',
+            Statement: [
+                {
+                    Action: 'execute-api:Invoke',
+                    Effect: effect,
+                    Resource: resource,
+                },
+            ],
+        },
+    }
+}
+
+export const main: APIGatewayTokenAuthorizerHandler = async (event) => {
+    const authHeader = event.authorizationToken
     console.log(
         '[Basic Authorizer]: Received request with Authorization header: ',
-        basicAuthHeader?.substring(0, 20) + '...',
+        authHeader?.substring(0, 20) + '...',
     )
 
-    if (!basicAuthHeader || !basicAuthHeader.startsWith('Basic ')) {
-        return {
-            statusCode: 401,
-            body: JSON.stringify({ message: 'Unauthorized' }),
-            headers: buildCorsHeaders({ reqOrigin: requestOrigin }),
-        }
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+        return generatePolicy('user', 'Deny', event.methodArn)
     }
 
-    const authorized = await verifyCredentials(basicAuthHeader)
+    const authorized = await verifyCredentials(authHeader)
     console.log('[Basic Authorizer]: Authorization result: ', authorized)
-    if (!authorized) {
-        return {
-            statusCode: 403,
-            body: JSON.stringify({ message: 'Invalid credentials' }),
-            headers: buildCorsHeaders({ reqOrigin: requestOrigin }),
-        }
-    }
 
-    return {
-        statusCode: 200,
-        body: JSON.stringify({ message: 'Hello from the authorized service!' }),
-        headers: buildCorsHeaders({ reqOrigin: requestOrigin }),
-    }
+    return generatePolicy(
+        'user',
+        authorized ? 'Allow' : 'Deny',
+        event.methodArn,
+    )
 }

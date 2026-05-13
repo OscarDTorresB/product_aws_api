@@ -1,5 +1,6 @@
 import {
     App,
+    aws_apigateway,
     aws_iam,
     aws_lambda,
     Duration,
@@ -13,7 +14,7 @@ interface AuthorizerServiceStackProps extends StackProps {
 }
 
 export class AuthorizerServiceStack extends Stack {
-    public readonly basicAuthorizerLambda: aws_lambda.Function
+    public readonly authorizer: aws_apigateway.TokenAuthorizer
 
     constructor(scope: App, id: string, props: AuthorizerServiceStackProps) {
         super(scope, id, props)
@@ -30,18 +31,28 @@ export class AuthorizerServiceStack extends Stack {
         }
 
         /* Lambda functions */
-        this.basicAuthorizerLambda = makeLambda(
+        const basicAuthorizerLambda = makeLambda(
             `${prefix}-Lambda-BasicAuthorizer`,
             'handlers/basicAuthorizer.main',
         )
         // Allows lambda to read secrets from Secrets Manager
-        this.basicAuthorizerLambda.addToRolePolicy(
+        basicAuthorizerLambda.addToRolePolicy(
             new aws_iam.PolicyStatement({
                 actions: ['secretsmanager:GetSecretValue'],
                 resources: [
                     'arn:aws:secretsmanager:*:*:secret:basic-auth-credentials*',
                 ],
             }),
+        )
+
+        this.authorizer = new aws_apigateway.TokenAuthorizer(
+            this,
+            `${prefix}-ApiGateway-Authorizer`,
+            {
+                handler: basicAuthorizerLambda,
+                identitySource:
+                    aws_apigateway.IdentitySource.header('Authorization'),
+            },
         )
     }
 }
