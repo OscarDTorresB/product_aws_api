@@ -22,7 +22,7 @@ const authorizerServiceStack = new AuthorizerServiceStack(
 const importServiceStack = new ImportServiceStack(app, 'ImportServiceStack', {
     prefix: 'ImportService',
     catalogItemsSqs: productServiceStack.catalogItemsSqs,
-    authorizer: authorizerServiceStack.authorizer,
+    authorizerLambdaArn: authorizerServiceStack.authorizerLambdaArn,
 })
 
 importServiceStack.addDependency(productServiceStack)

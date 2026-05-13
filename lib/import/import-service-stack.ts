@@ -17,7 +17,7 @@ import { ALLOWED_ORIGIN, DEFAULT_HEADERS } from '../../src/cors'
 interface ImportServiceStackProps extends StackProps {
     prefix: string
     catalogItemsSqs: aws_sqs.Queue
-    authorizer: aws_apigateway.TokenAuthorizer
+    authorizerLambdaArn: string
 }
 
 export class ImportServiceStack extends Stack {
@@ -91,10 +91,28 @@ export class ImportServiceStack extends Stack {
         const importProductsFileIntegration =
             new aws_apigateway.LambdaIntegration(importProductsFileLambda)
 
+        const authorizerLambdaRef = aws_lambda.Function.fromFunctionAttributes(
+            this,
+            `${prefix}-ImportedAuthorizerLambda`,
+            {
+                functionArn: props.authorizerLambdaArn,
+                skipPermissions: true,
+            },
+        )
+        const authorizer = new aws_apigateway.TokenAuthorizer(
+            this,
+            `${prefix}-ApiGateway-Authorizer`,
+            {
+                handler: authorizerLambdaRef,
+                identitySource:
+                    aws_apigateway.IdentitySource.header('Authorization'),
+            },
+        )
+
         /* Resources  */
         const importResource = restApi.root.addResource('import')
         importResource.addMethod('GET', importProductsFileIntegration, {
-            authorizer: props.authorizer,
+            authorizer,
         })
 
         /* Permissions */

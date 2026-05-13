@@ -1,6 +1,5 @@
 import {
     App,
-    aws_apigateway,
     aws_iam,
     aws_lambda,
     Duration,
@@ -14,7 +13,7 @@ interface AuthorizerServiceStackProps extends StackProps {
 }
 
 export class AuthorizerServiceStack extends Stack {
-    public readonly authorizer: aws_apigateway.TokenAuthorizer
+    public readonly authorizerLambdaArn: string
 
     constructor(scope: App, id: string, props: AuthorizerServiceStackProps) {
         super(scope, id, props)
@@ -45,14 +44,13 @@ export class AuthorizerServiceStack extends Stack {
             }),
         )
 
-        this.authorizer = new aws_apigateway.TokenAuthorizer(
-            this,
-            `${prefix}-ApiGateway-Authorizer`,
-            {
-                handler: basicAuthorizerLambda,
-                identitySource:
-                    aws_apigateway.IdentitySource.header('Authorization'),
-            },
-        )
+        // Broad grant so TokenAuthorizer in other stacks doesn't need to add its own
+        // cross-stack Lambda::Permission (which would create a dependency cycle).
+        basicAuthorizerLambda.addPermission('ApiGatewayInvoke', {
+            principal: new aws_iam.ServicePrincipal('apigateway.amazonaws.com'),
+            sourceAccount: this.account,
+        })
+
+        this.authorizerLambdaArn = basicAuthorizerLambda.functionArn
     }
 }
