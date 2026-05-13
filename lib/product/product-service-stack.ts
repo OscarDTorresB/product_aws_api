@@ -4,6 +4,8 @@ import {
     aws_ec2,
     aws_lambda,
     aws_rds,
+    aws_sns,
+    aws_sqs,
     Duration,
     RemovalPolicy,
     Stack,
@@ -19,12 +21,16 @@ import {
     Port,
     SubnetType,
 } from 'aws-cdk-lib/aws-ec2'
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources'
+import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions'
 
 interface ProductServiceStackProps extends StackProps {
     prefix: string
 }
 
 export class ProductServiceStack extends Stack {
+    public readonly catalogItemsSqs: aws_sqs.Queue
+
     constructor(scope: Construct, id: string, props: ProductServiceStackProps) {
         super(scope, id, props)
 
@@ -50,6 +56,9 @@ export class ProductServiceStack extends Stack {
         })
         vpc.addInterfaceEndpoint(`${prefix}-VpcEndpoint-SecretsManager`, {
             service: InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+        })
+        vpc.addInterfaceEndpoint(`${prefix}-VpcEndpoint-SNS`, {
+            service: InterfaceVpcEndpointAwsService.SNS,
         })
 
         /* Security Groups */
@@ -117,6 +126,7 @@ export class ProductServiceStack extends Stack {
                     retention: Duration.days(1),
                 },
                 removalPolicy: RemovalPolicy.DESTROY,
+                serverlessV2MinCapacity: 0,
                 serverlessV2MaxCapacity: 1,
                 port: 5432,
             },
@@ -145,7 +155,7 @@ export class ProductServiceStack extends Stack {
         const makeLambda = (id: string, handler: string) => {
             return new aws_lambda.Function(this, id, {
                 runtime: Runtime.NODEJS_24_X,
-                timeout: Duration.seconds(5),
+                timeout: Duration.seconds(10),
                 code: aws_lambda.Code.fromAsset('dist'),
                 handler,
                 vpc,
@@ -171,12 +181,17 @@ export class ProductServiceStack extends Stack {
             `${prefix}-Lambda-CreateProduct`,
             'handlers/createProduct.main',
         )
+        const catalogBatchProcessLambda = makeLambda(
+            `${prefix}-Lambda-CatalogBatchProcess`,
+            'handlers/catalogBatchProcess.main',
+        )
 
         const allLambdas = [
             seedProductsLambda,
             getProductsListLambda,
             getProductByIdLambda,
             createProductLambda,
+            catalogBatchProcessLambda,
         ]
 
         /* RDS permissions */
@@ -185,6 +200,60 @@ export class ProductServiceStack extends Stack {
             rdsCluster.grantConnect(lambda, 'postgres')
             rdsCluster.secret!.grantRead(lambda)
         })
+
+        /* SQS */
+        const catalogItemsSqs = new aws_sqs.Queue(
+            this,
+            `${prefix}-Queue-CatalogItems`,
+            {
+                fifo: true,
+                removalPolicy: RemovalPolicy.DESTROY,
+            },
+        )
+        // Expose queue
+        this.catalogItemsSqs = catalogItemsSqs
+
+        /* SNS */
+        const createProductTopic = new aws_sns.Topic(
+            this,
+            `${prefix}-Topic-CreateProduct`,
+        )
+
+        /* SQS event propagation to processor lambda */
+        catalogItemsSqs.grants.consumeMessages(catalogBatchProcessLambda)
+        catalogBatchProcessLambda.addEventSource(
+            new SqsEventSource(catalogItemsSqs, {
+                batchSize: 5,
+                maxConcurrency: 2,
+            }),
+        )
+
+        /* SNS subscriptions and permissions */
+        // Notified when any product in the batch has price < 100
+        createProductTopic.addSubscription(
+            new EmailSubscription('dev@oscartorres.co', {
+                filterPolicy: {
+                    price: aws_sns.SubscriptionFilter.numericFilter({
+                        lessThan: 100,
+                    }),
+                },
+            }),
+        )
+        // Notified when any product in the batch has price >= 100
+        createProductTopic.addSubscription(
+            new EmailSubscription('expensive-item@oscartorres.co', {
+                filterPolicy: {
+                    price: aws_sns.SubscriptionFilter.numericFilter({
+                        greaterThanOrEqualTo: 100,
+                    }),
+                },
+            }),
+        )
+        createProductTopic.grants.publish(catalogBatchProcessLambda)
+        catalogBatchProcessLambda.addEnvironment(
+            'ITEMS_CREATED_SNS_ARN',
+            createProductTopic.topicArn,
+        )
 
         /* Gateway */
         const apiGateway = new aws_apigateway.RestApi(

@@ -5,7 +5,7 @@ import db from '../utils/db'
 import type { APIGatewayProxyEvent, Handler } from 'aws-lambda'
 import type { ProductWithStock } from '../types/schemas'
 
-const createProduct = async (product: ProductWithStock) => {
+export const createProduct = async (product: ProductWithStock) => {
     const dbClient = await db.getClient()
 
     try {
@@ -13,7 +13,7 @@ const createProduct = async (product: ProductWithStock) => {
 
         const productRes = await dbClient.query(
             'INSERT INTO products (title, description, price) VALUES ($1, $2, $3) RETURNING *',
-            [product.title, product.description, product.price],
+            [product.title, product.description || null, product.price],
         )
         const stockRes = await dbClient.query(
             'INSERT INTO stock (product_id, count) VALUES ($1, $2) RETURNING *',
