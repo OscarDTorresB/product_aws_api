@@ -1,4 +1,5 @@
 import {
+    App,
     aws_apigateway,
     aws_lambda,
     aws_s3,
@@ -11,7 +12,6 @@ import {
 import { Runtime } from 'aws-cdk-lib/aws-lambda'
 import { HttpMethods } from 'aws-cdk-lib/aws-s3'
 import { LambdaDestination } from 'aws-cdk-lib/aws-s3-notifications'
-import { Construct } from 'constructs'
 import { ALLOWED_ORIGIN, DEFAULT_HEADERS } from '../../src/cors'
 
 interface ImportServiceStackProps extends StackProps {
@@ -20,7 +20,7 @@ interface ImportServiceStackProps extends StackProps {
 }
 
 export class ImportServiceStack extends Stack {
-    constructor(scope: Construct, id: string, props: ImportServiceStackProps) {
+    constructor(scope: App, id: string, props: ImportServiceStackProps) {
         super(scope, id, props)
 
         const { prefix } = props

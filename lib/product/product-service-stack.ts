@@ -1,5 +1,5 @@
-import { Construct } from 'constructs'
 import {
+    App,
     aws_apigateway,
     aws_ec2,
     aws_lambda,
@@ -31,7 +31,7 @@ interface ProductServiceStackProps extends StackProps {
 export class ProductServiceStack extends Stack {
     public readonly catalogItemsSqs: aws_sqs.Queue
 
-    constructor(scope: Construct, id: string, props: ProductServiceStackProps) {
+    constructor(scope: App, id: string, props: ProductServiceStackProps) {
         super(scope, id, props)
 
         const { prefix } = props
