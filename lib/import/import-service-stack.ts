@@ -115,6 +115,12 @@ export class ImportServiceStack extends Stack {
             authorizer,
         })
 
+        /* CORS */
+        importResource.addCorsPreflight({
+            allowOrigins: [ALLOWED_ORIGIN, 'http://localhost:3000'],
+            allowMethods: ['GET'],
+        })
+
         /* Permissions */
         bucket.grants.put(
             importProductsFileLambda,
