@@ -3,10 +3,12 @@ import {
     aws_iam,
     aws_lambda,
     Duration,
+    RemovalPolicy,
     Stack,
     StackProps,
 } from 'aws-cdk-lib'
 import { Runtime } from 'aws-cdk-lib/aws-lambda'
+import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs'
 
 interface AuthorizerServiceStackProps extends StackProps {
     prefix: string
@@ -21,11 +23,18 @@ export class AuthorizerServiceStack extends Stack {
         const { prefix } = props
 
         const makeLambda = (id: string, handler: string) => {
+            const logGroup = new LogGroup(this, `${id}-LogGroup`, {
+                logGroupName: `/aws/lambda/${id}`,
+                retention: RetentionDays.ONE_WEEK,
+                removalPolicy: RemovalPolicy.DESTROY,
+            })
             return new aws_lambda.Function(this, id, {
+                functionName: id,
                 runtime: Runtime.NODEJS_24_X,
                 timeout: Duration.seconds(10),
                 code: aws_lambda.Code.fromAsset('dist'),
                 handler,
+                logGroup,
             })
         }
 

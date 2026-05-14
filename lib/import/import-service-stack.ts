@@ -10,6 +10,7 @@ import {
     StackProps,
 } from 'aws-cdk-lib'
 import { Runtime } from 'aws-cdk-lib/aws-lambda'
+import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs'
 import { HttpMethods } from 'aws-cdk-lib/aws-s3'
 import { LambdaDestination } from 'aws-cdk-lib/aws-s3-notifications'
 import { ALLOWED_ORIGIN, DEFAULT_HEADERS } from '../../src/cors'
@@ -54,13 +55,20 @@ export class ImportServiceStack extends Stack {
             description: string,
             handler: string,
         ) => {
+            const logGroup = new LogGroup(this, `${id}-LogGroup`, {
+                logGroupName: `/aws/lambda/${id}`,
+                retention: RetentionDays.ONE_WEEK,
+                removalPolicy: RemovalPolicy.DESTROY,
+            })
             return new aws_lambda.Function(this, id, {
                 description,
+                functionName: id,
                 runtime: Runtime.NODEJS_24_X,
                 timeout: Duration.seconds(5),
                 code: aws_lambda.Code.fromAsset('dist'),
                 handler,
                 environment: COMMON_ENV,
+                logGroup,
             })
         }
 

@@ -12,6 +12,7 @@ import {
     StackProps,
 } from 'aws-cdk-lib'
 import { Runtime } from 'aws-cdk-lib/aws-lambda'
+import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs'
 import { ALLOWED_ORIGIN } from '../../src/cors'
 import { AuroraPostgresEngineVersion } from 'aws-cdk-lib/aws-rds'
 import {
@@ -153,7 +154,13 @@ export class ProductServiceStack extends Stack {
         }
 
         const makeLambda = (id: string, handler: string) => {
+            const logGroup = new LogGroup(this, `${id}-LogGroup`, {
+                logGroupName: `/aws/lambda/${id}`,
+                retention: RetentionDays.ONE_WEEK,
+                removalPolicy: RemovalPolicy.DESTROY,
+            })
             return new aws_lambda.Function(this, id, {
+                functionName: id,
                 runtime: Runtime.NODEJS_24_X,
                 timeout: Duration.seconds(10),
                 code: aws_lambda.Code.fromAsset('dist'),
@@ -161,6 +168,7 @@ export class ProductServiceStack extends Stack {
                 vpc,
                 securityGroups: [sgProductsLambdas],
                 environment: COMMON_ENV,
+                logGroup,
             })
         }
 
