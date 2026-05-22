@@ -24,6 +24,8 @@ https://d8c4czr6ee.execute-api.us-east-1.amazonaws.com/prod/products/70ea14ee-f9
 
 #### Get signed URL for uploading products file -> GET /import?filename={filename}
 
+This endpoints requires Basic Authentication. Credentials are provided internally or you can check the task requirements for more details.
+
 https://sacavh29kd.execute-api.us-east-1.amazonaws.com/prod/import?name=product-file.csv
 
 ## Useful commands

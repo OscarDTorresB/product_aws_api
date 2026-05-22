@@ -10,6 +10,7 @@ import {
     StackProps,
 } from 'aws-cdk-lib'
 import { Runtime } from 'aws-cdk-lib/aws-lambda'
+import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs'
 import { HttpMethods } from 'aws-cdk-lib/aws-s3'
 import { LambdaDestination } from 'aws-cdk-lib/aws-s3-notifications'
 import { ALLOWED_ORIGIN, DEFAULT_HEADERS } from '../../src/cors'
@@ -17,6 +18,7 @@ import { ALLOWED_ORIGIN, DEFAULT_HEADERS } from '../../src/cors'
 interface ImportServiceStackProps extends StackProps {
     prefix: string
     catalogItemsSqs: aws_sqs.Queue
+    authorizerLambdaArn: string
 }
 
 export class ImportServiceStack extends Stack {
@@ -53,13 +55,20 @@ export class ImportServiceStack extends Stack {
             description: string,
             handler: string,
         ) => {
+            const logGroup = new LogGroup(this, `${id}-LogGroup`, {
+                logGroupName: `/aws/lambda/${id}`,
+                retention: RetentionDays.ONE_WEEK,
+                removalPolicy: RemovalPolicy.DESTROY,
+            })
             return new aws_lambda.Function(this, id, {
                 description,
+                functionName: id,
                 runtime: Runtime.NODEJS_24_X,
                 timeout: Duration.seconds(5),
                 code: aws_lambda.Code.fromAsset('dist'),
                 handler,
                 environment: COMMON_ENV,
+                logGroup,
             })
         }
 
@@ -90,9 +99,35 @@ export class ImportServiceStack extends Stack {
         const importProductsFileIntegration =
             new aws_apigateway.LambdaIntegration(importProductsFileLambda)
 
+        const authorizerLambdaRef = aws_lambda.Function.fromFunctionAttributes(
+            this,
+            `${prefix}-ImportedAuthorizerLambda`,
+            {
+                functionArn: props.authorizerLambdaArn,
+                skipPermissions: true,
+            },
+        )
+        const authorizer = new aws_apigateway.TokenAuthorizer(
+            this,
+            `${prefix}-ApiGateway-Authorizer`,
+            {
+                handler: authorizerLambdaRef,
+                identitySource:
+                    aws_apigateway.IdentitySource.header('Authorization'),
+            },
+        )
+
         /* Resources  */
         const importResource = restApi.root.addResource('import')
-        importResource.addMethod('GET', importProductsFileIntegration)
+        importResource.addMethod('GET', importProductsFileIntegration, {
+            authorizer,
+        })
+
+        /* CORS */
+        importResource.addCorsPreflight({
+            allowOrigins: [ALLOWED_ORIGIN, 'http://localhost:3000'],
+            allowMethods: ['GET'],
+        })
 
         /* Permissions */
         bucket.grants.put(
